@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MCP Entity Tree</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #fafafa; --fg: #222; --muted: #777; --header-bg: #fff; --border: #ddd;
+      --node-bg: #ffffff; --link: #c4c4c4; --match: #c00; --tip-bg: #333; --tip-fg: #fff;
+      --glow: rgba(123, 47, 247, 0.45);
+      --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme=light]) {
+        color-scheme: dark;
+        --bg: #14161a; --fg: #e6e6e6; --muted: #9aa0a6; --header-bg: #1c1f24; --border: #33373d;
+        --node-bg: #23262c; --link: #4a4f57; --match: #ff6b6b; --tip-bg: #e6e6e6; --tip-fg: #14161a;
+        --glow: rgba(64, 224, 208, 0.45);
+        --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      }
+    }
+    :root[data-theme=dark] {
+      color-scheme: dark;
+      --bg: #14161a; --fg: #e6e6e6; --muted: #9aa0a6; --header-bg: #1c1f24; --border: #33373d;
+      --node-bg: #23262c; --link: #4a4f57; --match: #ff6b6b; --tip-bg: #e6e6e6; --tip-fg: #14161a;
+      --glow: rgba(64, 224, 208, 0.45);
+      --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    }
+    body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+           font: 13px system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .2s, color .2s; }
+    header { flex: none; z-index: 1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+             padding: 8px 12px; background: var(--header-bg); border-bottom: 1px solid var(--border); }
+    header h1 { font-size: 15px; margin: 0 12px 0 0; }
+    .filter-group { display: inline-flex; height: 30px; }
+    .filter-group select, .filter-group .search { box-sizing: border-box; height: 100%; border: 1px solid var(--border);
+                                                  background-color: var(--node-bg); color: var(--fg); font: inherit;
+                                                  transition: border-color .15s, box-shadow .15s; }
+    .filter-group select { appearance: none; max-width: 200px; padding: 0 30px 0 10px; border-radius: 6px 0 0 6px; cursor: pointer;
+                           background-image: var(--chevron); background-repeat: no-repeat;
+                           background-position: right 9px center; background-size: 14px; }
+    .filter-group select option { background: var(--node-bg); color: var(--fg); }
+    .filter-group .search { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; margin-left: -1px;
+                            border-radius: 0 6px 6px 0; color: var(--muted); cursor: text; }
+    .filter-group .search svg { width: 15px; height: 15px; flex: none; }
+    .filter-group .search input { width: 200px; height: 100%; padding: 0; border: 0; outline: 0; background: transparent;
+                                  color: var(--fg); font: inherit; }
+    .filter-group .search input::placeholder { color: var(--muted); }
+    .filter-group select:hover, .filter-group .search:hover { border-color: #7b2ff7; }
+    .filter-group select:focus-visible, .filter-group .search:focus-within {
+      outline: none; border-color: #7b2ff7; box-shadow: 0 0 0 3px rgba(123, 47, 247, .25); position: relative; z-index: 1; }
+    .icon-btn:focus-visible { outline: none; border-color: #7b2ff7; box-shadow: 0 0 0 3px rgba(123, 47, 247, .25); }
+    #status { color: var(--muted); margin-left: auto; }
+    .legend span { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
+    .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    #tree { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+    #zoomBar { position: absolute; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 6px;
+               padding: 6px 10px; border-radius: 20px; background: var(--header-bg); border: 1px solid var(--border);
+               box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0;
+                border-radius: 6px; border: 1px solid var(--border); background: var(--node-bg); color: var(--fg); cursor: pointer;
+                transition: border-color .15s, color .15s; }
+    .icon-btn:hover { border-color: #7b2ff7; color: #7b2ff7; }
+    .icon-btn svg { width: 16px; height: 16px; }
+    #zoomBar .icon-btn { width: 28px; height: 28px; border-radius: 50%; }
+    #zoomBar input { width: 160px; accent-color: #7b2ff7; cursor: pointer; }
+    #zoomLabel { min-width: 42px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+    #tree > svg { display: block; cursor: grab; touch-action: none; user-select: none; }
+    #tree > svg.panning { cursor: grabbing; }
+    .node { cursor: pointer; }
+    .node rect.bg { stroke-width: 1.2px; stroke-opacity: .7; transition: stroke-width .15s; }
+    .node:hover rect.bg { stroke-opacity: 1; stroke-width: 2px; }
+    .node circle { stroke-width: 1.5px; }
+    .node text { fill: var(--fg); }
+    .node .sub { fill: var(--muted); }
+    .node .copy { color: var(--muted); cursor: copy; }
+    .node .copy:hover { color: #7b2ff7; }
+    .node .copy svg { pointer-events: none; }
+    .node .copy .ic-check { display: none; color: #2ca02c; }
+    .node .copy.copied .ic-copy { display: none; }
+    .node .copy.copied .ic-check { display: inline; }
+    .node.match text { font-weight: 700; fill: var(--match); }
+    .node.fk rect.bg { stroke-dasharray: 5 3; stroke-opacity: 1; stroke-width: 1.6px; }
+    .node.selected rect.bg { stroke: url(#sel-grad); stroke-width: 2.5px; stroke-opacity: 1;
+                             animation: glow 2.5s ease-in-out infinite; }
+    @keyframes glow {
+      0%, 100% { filter: drop-shadow(0 0 2px var(--glow)); }
+      50% { filter: drop-shadow(0 0 7px var(--glow)); }
+    }
+    .link { fill: none; stroke: var(--link); stroke-width: 1.4px; }
+    #tooltip { position: fixed; pointer-events: none; background: var(--tip-bg); color: var(--tip-fg); padding: 4px 8px;
+               border-radius: 4px; font-size: 12px; max-width: 480px; display: none; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MCP Entity Tree</h1>
+    <div class="filter-group">
+      <select id="filterKey" title="Key to filter on (dotted paths search inside fields/joins/relations)" aria-label="Filter key"></select>
+      <label class="search" title="Filter value">
+        <i data-lucide="search"></i>
+        <input type="search" id="search" placeholder="Filter value…" aria-label="Filter value">
+      </label>
+    </div>
+    <button id="expand" class="icon-btn" title="Expand entities" aria-label="Expand entities"><i data-lucide="unfold-vertical"></i></button>
+    <button id="collapse" class="icon-btn" title="Collapse all" aria-label="Collapse all"><i data-lucide="fold-vertical"></i></button>
+    <button id="reset" class="icon-btn" title="Reset view (drag to pan, wheel to zoom)" aria-label="Reset view"><i data-lucide="locate-fixed"></i></button>
+    <button id="loadFile" class="icon-btn" title="Load file" aria-label="Load file"><i data-lucide="folder-open"></i></button>
+    <input type="file" id="file" accept=".json" hidden>
+    <span class="legend">
+      <span><i style="background:#1f77b4"></i>entity</span>
+      <span><i style="background:#2ca02c"></i>field</span>
+      <span><i style="background:#ff7f0e"></i>join</span>
+      <span><i style="background:#9467bd"></i>relation</span>
+    </span>
+    <span id="status">Loading entities.json…</span>
+    <button id="theme" class="icon-btn" title="Theme" aria-label="Theme"></button>
+  </header>
+  <div id="tree">
+    <div id="zoomBar" title="Zoom (mouse wheel also works)">
+      <button id="zoomOut" class="icon-btn" title="Zoom out" aria-label="Zoom out"><i data-lucide="zoom-out"></i></button>
+      <input type="range" id="zoomSlider" step="5" value="100" aria-label="Zoom">
+      <button id="zoomIn" class="icon-btn" title="Zoom in" aria-label="Zoom in"><i data-lucide="zoom-in"></i></button>
+      <span id="zoomLabel">100%</span>
+    </div>
+  </div>
+  <div id="tooltip"></div>
+  <script src="d3.min.js"></script>
+  <script src="lucide.min.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>
